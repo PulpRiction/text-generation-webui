@@ -233,7 +233,7 @@ def generate_chat_prompt(user_input, state, **kwargs):
                         attachments_text += f"\nName: {filename}\nContents:\n\n=====\n{content}\n=====\n\n"
 
                 if image_refs or attachments_text:
-                    enhanced_user_msg = f"{image_refs}{user_msg}"
+                    enhanced_user_msg = f"{user_msg} {image_refs}"
                     if attachments_text:
                         enhanced_user_msg += f"\n\nATTACHMENTS:\n{attachments_text}"
 
@@ -267,7 +267,7 @@ def generate_chat_prompt(user_input, state, **kwargs):
                     attachments_text += f"\nName: {filename}\nContents:\n\n=====\n{content}\n=====\n\n"
 
             if image_refs or attachments_text:
-                enhanced_user_input = f"{image_refs}{user_input}"
+                enhanced_user_input = f"{user_input} {image_refs}"
                 if attachments_text:
                     enhanced_user_input += f"\n\nATTACHMENTS:\n{attachments_text}"
 

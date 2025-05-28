@@ -140,12 +140,11 @@ def process_multimodal_content(content):
                     attachment = process_image_url(image_url, len(attachments) + 1)
                     if attachment:
                         attachments.append(attachment)
-                        image_refs += f"[img-{attachment['image_id']}]"
                     else:
                         # Log warning but continue processing
                         logger.warning(f"Failed to process image URL: {image_url}")
 
-        return f"{image_refs}{text_content}", attachments
+        return text_content, attachments
 
     return str(content), []
 
