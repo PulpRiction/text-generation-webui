@@ -102,7 +102,10 @@ def process_image_url(url, image_id):
                 raise ValueError("Unsupported data URL format")
         else:
             # Handle regular URL - download image
-            response = requests.get(url, timeout=10)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+            response = requests.get(url, timeout=10, headers=headers)
             response.raise_for_status()
             image_data = base64.b64encode(response.content).decode('utf-8')
 
@@ -111,7 +114,7 @@ def process_image_url(url, image_id):
             "type": "image",
             "image_data": image_data,
             "image_id": image_id,
-            "file_path": f"api_image_{image_id}",  # Add this for consistency with UI
+            "file_path": f"api_image_{image_id}",
         }
     except Exception as e:
         logger.error(f"Error processing image URL {url}: {e}")
