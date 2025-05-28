@@ -3,7 +3,6 @@ import copy
 import json
 import time
 from collections import deque
-from datetime import datetime
 
 import requests
 import tiktoken
@@ -86,49 +85,34 @@ def process_parameters(body, is_legacy=False):
     return generate_params
 
 
-def get_current_timestamp():
-    """Returns the current time in 24-hour format"""
-    return datetime.now().strftime('%b %d, %Y %H:%M')
-
-
 def process_image_url(url, image_id):
-    """Process an image URL and return attachment data"""
+    """Process an image URL and return attachment data for llama.cpp"""
     try:
         if url.startswith("data:"):
-            # Handle data URL (data:image/jpeg;base64,...)
             if "base64," in url:
                 image_data = url.split("base64,", 1)[1]
             else:
                 raise ValueError("Unsupported data URL format")
         else:
-            # Handle regular URL - download image
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
             response = requests.get(url, timeout=10, headers=headers)
             response.raise_for_status()
             image_data = base64.b64encode(response.content).decode('utf-8')
 
-        return {
-            "name": f"image_{image_id}",
-            "type": "image",
-            "image_data": image_data,
-            "image_id": image_id,
-            "file_path": f"api_image_{image_id}",
-        }
+        return {"image_data": image_data, "image_id": image_id}
     except Exception as e:
         logger.error(f"Error processing image URL {url}: {e}")
         return None
 
 
 def process_multimodal_content(content):
-    """Process multimodal content and return text content and attachments"""
+    """Extract text and images from OpenAI multimodal format"""
     if isinstance(content, str):
         return content, []
 
     if isinstance(content, list):
         text_content = ""
-        attachments = []
+        images = []
 
         for item in content:
             if item.get("type") == "text":
@@ -136,14 +120,11 @@ def process_multimodal_content(content):
             elif item.get("type") == "image_url":
                 image_url = item.get("image_url", {}).get("url", "")
                 if image_url:
-                    attachment = process_image_url(image_url, len(attachments) + 1)
-                    if attachment:
-                        attachments.append(attachment)
-                    else:
-                        # Log warning but continue processing
-                        logger.warning(f"Failed to process image URL: {image_url}")
+                    image = process_image_url(image_url, len(images) + 1)
+                    if image:
+                        images.append(image)
 
-        return text_content, attachments
+        return text_content, images
 
     return str(content), []
 
@@ -159,10 +140,7 @@ def convert_history(history):
     user_input = ""
     user_input_last = True
     system_message = ""
-    metadata = {}
-
-    # Keep track of attachments for the current message being built
-    pending_attachments = []
+    all_images = []  # Simple list to collect all images
 
     for entry in history:
         content = entry["content"]
@@ -170,16 +148,20 @@ def convert_history(history):
 
         if role == "user":
             # Process multimodal content
-            processed_content, attachments = process_multimodal_content(content)
+            processed_content, images = process_multimodal_content(content)
+            if images:
+                image_refs = "".join(f"[img-{img['image_id']}]" for img in images)
+                processed_content = f"{processed_content} {image_refs}"
+
             user_input = processed_content
             user_input_last = True
+            all_images.extend(images)  # Add any images to our collection
 
             if current_message:
                 chat_dialogue.append([current_message, '', ''])
                 current_message = ""
 
             current_message = processed_content
-            pending_attachments = attachments  # Store attachments for when message is added
 
         elif role == "assistant":
             if "tool_calls" in entry and isinstance(entry["tool_calls"], list) and len(entry["tool_calls"]) > 0 and content.strip() == "":
@@ -187,18 +169,7 @@ def convert_history(history):
             current_reply = content
             user_input_last = False
             if current_message:
-                row_idx = len(chat_dialogue)  # Calculate index here, right before adding
                 chat_dialogue.append([current_message, current_reply, ''])
-
-                # Add attachments to metadata if any
-                if pending_attachments:
-                    user_key = f"user_{row_idx}"
-                    metadata[user_key] = {
-                        "timestamp": get_current_timestamp(),
-                        "attachments": pending_attachments
-                    }
-                    pending_attachments = []  # Clear pending attachments
-
                 current_message = ""
                 current_reply = ""
             else:
@@ -209,19 +180,14 @@ def convert_history(history):
         elif role == "system":
             system_message += f"\n{content}" if system_message else content
 
-    # Handle case where there's a pending user message at the end
-    if current_message and pending_attachments:
-        row_idx = len(chat_dialogue)  # This will be the index when the message is processed
-        user_key = f"user_{row_idx}"
-        metadata[user_key] = {
-            "timestamp": get_current_timestamp(),
-            "attachments": pending_attachments
-        }
-
     if not user_input_last:
         user_input = ""
 
-    return user_input, system_message, {'internal': chat_dialogue, 'visible': copy.deepcopy(chat_dialogue), 'metadata': metadata}
+    return user_input, system_message, {
+        'internal': chat_dialogue,
+        'visible': copy.deepcopy(chat_dialogue),
+        'images': all_images  # Simple list of all images from the conversation
+    }
 
 
 def chat_completions_common(body: dict, is_legacy: bool = False, stream=False, prompt_only=False) -> dict:
@@ -298,15 +264,6 @@ def chat_completions_common(body: dict, is_legacy: bool = False, stream=False, p
     # History
     user_input, custom_system_message, history = convert_history(messages)
 
-    # Collect image attachments for multimodal support
-    image_attachments = []
-    if 'metadata' in history:
-        for key, value in history['metadata'].items():
-            if 'attachments' in value:
-                for attachment in value['attachments']:
-                    if attachment.get('type') == 'image':
-                        image_attachments.append(attachment)
-
     generate_params.update({
         'mode': body['mode'],
         'name1': name1,
@@ -323,9 +280,9 @@ def chat_completions_common(body: dict, is_legacy: bool = False, stream=False, p
         'stream': stream
     })
 
-    # Add image attachments to state for llama.cpp multimodal support
-    if image_attachments:
-        generate_params['image_attachments'] = image_attachments
+    # Add images to state for llama.cpp multimodal support
+    if history.get('images'):
+        generate_params['image_attachments'] = history['images']
 
     max_tokens = generate_params['max_new_tokens']
     if max_tokens in [None, 0]:
