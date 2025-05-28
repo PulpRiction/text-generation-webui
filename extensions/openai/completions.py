@@ -128,7 +128,6 @@ def process_multimodal_content(content):
 
     if isinstance(content, list):
         text_content = ""
-        image_refs = ""
         attachments = []
 
         for item in content:
