@@ -140,6 +140,17 @@ class LlamaServer:
             "cache_prompt": True
         })
 
+        # Add image data if present
+        if 'image_attachments' in state:
+            image_data = []
+            for attachment in state['image_attachments']:
+                image_data.append({
+                    "data": attachment['image_data'],
+                    "id": attachment['image_id']
+                })
+            if image_data:
+                payload["image_data"] = image_data
+
         if shared.args.verbose:
             logger.info("GENERATE_PARAMS=")
             printable_payload = {k: v for k, v in payload.items() if k != "prompt"}
