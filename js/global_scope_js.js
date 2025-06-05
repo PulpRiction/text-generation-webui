@@ -95,6 +95,12 @@ function startEditing(messageElement, messageBody, isUserMessage) {
   editingInterface.textarea.focus();
   editingInterface.textarea.setSelectionRange(rawText.length, rawText.length);
 
+  // Scroll the textarea into view
+  editingInterface.textarea.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
+
   // Setup event handlers
   setupEditingHandlers(editingInterface.textarea, messageElement, originalHTML, messageBody, isUserMessage);
 }
@@ -186,31 +192,33 @@ function navigateVersion(element, direction) {
   const index = messageElement.getAttribute("data-index");
   if (!index) return;
 
-  const indexInput = document.getElementById("Navigate-message-index").querySelector("input");
-  if (!indexInput) {
-    console.error("Element with ID 'Navigate-message-index' not found.");
-    return;
+  // Determine role based on message element classes
+  let role = "assistant"; // Default role
+  if (messageElement.classList.contains("user-message") ||
+      messageElement.querySelector(".text-you") ||
+      messageElement.querySelector(".circle-you")) {
+    role = "user";
   }
 
-  const directionInput = document.getElementById("Navigate-direction").querySelector("textarea");
-  if (!directionInput) {
-    console.error("Element with ID 'Navigate-direction' not found.");
-    return;
-  }
-
+  const indexInput = document.getElementById("Navigate-message-index")?.querySelector("input");
+  const directionInput = document.getElementById("Navigate-direction")?.querySelector("textarea");
+  const roleInput = document.getElementById("Navigate-message-role")?.querySelector("textarea");
   const navigateButton = document.getElementById("Navigate-version");
-  if (!navigateButton) {
-    console.error("Required element 'Navigate-version' not found.");
+
+  if (!indexInput || !directionInput || !roleInput || !navigateButton) {
+    console.error("Navigation control elements (index, direction, role, or button) not found.");
     return;
   }
 
   indexInput.value = index;
   directionInput.value = direction;
+  roleInput.value = role;
 
-  // Trigger any 'change' or 'input' events Gradio might be listening for
+  // Trigger 'input' events for Gradio to pick up changes
   const event = new Event("input", { bubbles: true });
   indexInput.dispatchEvent(event);
   directionInput.dispatchEvent(event);
+  roleInput.dispatchEvent(event);
 
   navigateButton.click();
 }
@@ -227,10 +235,23 @@ function removeLastClick() {
   document.getElementById("Remove-last").click();
 }
 
-function handleMorphdomUpdate(text) {
+function handleMorphdomUpdate(data) {
+  // Determine target element and use it as query scope
+  var target_element, target_html;
+  if (data.last_message_only) {
+    const childNodes = document.getElementsByClassName("messages")[0].childNodes;
+    target_element = childNodes[childNodes.length - 1];
+    target_html = data.html;
+  } else {
+    target_element = document.getElementById("chat").parentNode;
+    target_html =  "<div class=\"prose svelte-1ybaih5\">" + data.html + "</div>";
+  }
+
+  const queryScope = target_element;
+
   // Track open blocks
   const openBlocks = new Set();
-  document.querySelectorAll(".thinking-block").forEach(block => {
+  queryScope.querySelectorAll(".thinking-block").forEach(block => {
     const blockId = block.getAttribute("data-block-id");
     // If block exists and is open, add to open set
     if (blockId && block.hasAttribute("open")) {
@@ -240,7 +261,7 @@ function handleMorphdomUpdate(text) {
 
   // Store scroll positions for any open blocks
   const scrollPositions = {};
-  document.querySelectorAll(".thinking-block[open]").forEach(block => {
+  queryScope.querySelectorAll(".thinking-block[open]").forEach(block => {
     const content = block.querySelector(".thinking-content");
     const blockId = block.getAttribute("data-block-id");
     if (content && blockId) {
@@ -253,8 +274,8 @@ function handleMorphdomUpdate(text) {
   });
 
   morphdom(
-    document.getElementById("chat").parentNode,
-    "<div class=\"prose svelte-1ybaih5\">" + text + "</div>",
+    target_element,
+    target_html,
     {
       onBeforeElUpdated: function(fromEl, toEl) {
         // Preserve code highlighting
@@ -305,7 +326,7 @@ function handleMorphdomUpdate(text) {
   );
 
   // Add toggle listeners for new blocks
-  document.querySelectorAll(".thinking-block").forEach(block => {
+  queryScope.querySelectorAll(".thinking-block").forEach(block => {
     if (!block._hasToggleListener) {
       block.addEventListener("toggle", function(e) {
         if (this.open) {
