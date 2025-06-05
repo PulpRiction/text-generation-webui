@@ -150,7 +150,7 @@ def convert_history(history):
             # Process multimodal content
             processed_content, images = process_multimodal_content(content)
             if images:
-                image_refs = "".join(f"[img-{img['image_id']}]" for img in images)
+                image_refs = "".join("<__media__>" for img in images)
                 processed_content = f"{processed_content} {image_refs}"
 
             user_input = processed_content

@@ -225,7 +225,7 @@ def generate_chat_prompt(user_input, state, **kwargs):
                 for attachment in metadata[user_key]["attachments"]:
                     if attachment.get("type") == "image":
                         # Add image reference for multimodal models
-                        image_refs += f"[img-{attachment['image_id']}]"
+                        image_refs += "<__media__>"
                     else:
                         # Handle text/PDF attachments as before
                         filename = attachment.get("name", "file")
@@ -260,7 +260,7 @@ def generate_chat_prompt(user_input, state, **kwargs):
 
             for attachment in metadata[user_key]["attachments"]:
                 if attachment.get("type") == "image":
-                    image_refs += f"[img-{attachment['image_id']}]"
+                    image_refs += "<__media__>"
                 else:
                     filename = attachment.get("name", "file")
                     content = attachment.get("content", "")
@@ -517,17 +517,30 @@ def add_message_attachment(history, row_idx, file_path, is_user=True):
             with open(path, 'rb') as f:
                 image_data = base64.b64encode(f.read()).decode('utf-8')
 
+            # Determine MIME type from extension
+            mime_type_map = {
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.png': 'image/png',
+                '.webp': 'image/webp',
+                '.bmp': 'image/bmp',
+                '.gif': 'image/gif'
+            }
+            mime_type = mime_type_map.get(file_extension, 'image/jpeg')
+
+            # Format as data URL
+            data_url = f"data:{mime_type};base64,{image_data}"
+
             # Generate unique image ID
             image_id = len([att for att in history['metadata'][key]["attachments"] if att.get("type") == "image"]) + 1
 
             attachment = {
                 "name": filename,
                 "type": "image",
-                "image_data": image_data,
+                "image_data": data_url,
                 "image_id": image_id,
                 "file_path": str(path)  # For UI preview
             }
-
         elif file_extension == '.pdf':
             # Process PDF file
             content = extract_pdf_text(path)

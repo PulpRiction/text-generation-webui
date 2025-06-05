@@ -123,15 +123,15 @@ class LlamaServer:
 
         # Add image data if present
         if 'image_attachments' in state:
-            image_data = []
+            medias = []
             for attachment in state['image_attachments']:
-                image_data.append({
-                    "data": attachment['image_data'],
-                    "id": attachment['image_id']
+                medias.append({
+                    "type": "image",
+                    "data": attachment['image_data']
                 })
 
-            if image_data:
-                payload["image_data"] = image_data
+            if medias:
+                payload["medias"] = medias
 
         return payload
 
