@@ -1555,7 +1555,7 @@ strong {
     flex-direction: column;
 }
 
-.attachment-image {
+.image-preview {
     border-radius: 16px;
     margin-bottom: 5px;
     object-fit: cover;

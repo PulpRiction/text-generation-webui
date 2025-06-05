@@ -377,7 +377,7 @@ def format_message_attachments(history, role, index):
                 file_path = attachment.get("file_path", "")
                 attachments_html += (
                     f'<div class="attachment-box image-attachment">'
-                    f'<img src="file/{file_path}" alt="{name}" class="attachment-image" />'
+                    f'<img src="file/{file_path}" alt="{name}" class="image-preview" />'
                     f'<div class="attachment-name">{name}</div>'
                     f'</div>'
                 )
