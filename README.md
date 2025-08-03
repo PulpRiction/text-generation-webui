@@ -179,7 +179,8 @@ Requirements file to use:
 ```
 conda activate textgen
 cd text-generation-webui
-python server.py
+call python one_click.py --api --auto-launch --cors-allow-origins="*"
+
 ```
 
 Then browse to

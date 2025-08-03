@@ -1,0 +1,11 @@
+on host 
+cd C:\AI\local-ai-sideproject\text-generation-webui
+python -m venv venv   
+.\venv\Scripts\Activate.ps1  
+python server.py --api --listen --listen-host 0.0.0.0 from PS 
+
+on VM
+python app.py
+
+on host
+run index.html
